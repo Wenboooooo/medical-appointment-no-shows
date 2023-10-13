@@ -1,0 +1,545 @@
+---
+title: "Data Science project"
+author: "Wenbo Liu, Heather Wang, Shiying Zheng, Shanshan Qiao, Tao Wei"
+date: "5/4/2022"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+#clean workspace
+rm(list = ls())
+```
+
+
+```{r}
+#load package
+library(tidyverse)
+library(rpart)
+library(rpart.plot)
+```
+
+
+```{r}
+# load data
+app <-  read_csv("KaggleV2-May-2016.csv")
+```
+
+
+```{r}
+#check data
+head(app)
+
+#check data types
+str(app)
+```
+
+
+```{r}
+app$ScheduledDay<-as.Date(app$ScheduledDay,"%Y-%m-%d")
+app$timespan = as.numeric(as.Date(app$AppointmentDay,"%Y-%m-%d") - app$ScheduledDay)
+```
+
+
+```{r}
+#change colunm names
+names(app)<-  c('patient_id',
+                   'appointment_id',
+                   'gender','schedule_day',
+                   'appointment_day',
+                   'age',
+                   'neighborhood',
+                   'scholarship',
+                   'hypertension',
+                   'diabetes',
+                   'alcoholism',
+                   'handicap',
+                   'sms_received',
+                   'no_show','timespan')
+```
+
+
+```{r}
+#quick glance
+head(app)
+```
+
+
+```{r}
+#check NA and duplicates
+sum(is.na(app))
+
+sum(duplicated(app))
+
+```
+
+
+```{r}
+#change data types
+app <- mutate_at(app, vars('gender',
+                   'neighborhood',
+                   'scholarship',
+                   'hypertension',
+                   'diabetes',
+                   'alcoholism',
+                   'handicap',
+                   'sms_received'), as.factor)
+```
+
+
+```{r}
+#check data type
+lapply(app, class)
+```
+
+
+```{r}
+#check negative age value and drop those
+app[app$age <0,]
+app <- app[!(app$age<0),]
+```
+
+
+```{r}
+#check age values again
+summary(app$age)
+```
+
+
+```{r}
+ggplot(app,aes(x=age)) + 
+    geom_histogram(data=subset(app,no_show == 'No'),fill = '#00BFC4', alpha = 0.8, bins = 40) +
+    geom_histogram(data=subset(app,no_show == 'Yes'),fill = '#F8766D', alpha = 0.8, bins = 40) +
+    ggtitle('Age vs No Show Histogram')+
+    theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+```{r}
+app$no_show <- as.factor(app$no_show)
+```
+
+
+```{r}
+#box plot
+ggplot(app, aes(x = no_show, y = timespan, fill = no_show))+
+    geom_boxplot()+ 
+    ggtitle("Timespan vs No Show Boxplot")+
+    theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+```{r}
+#box plot
+ggplot(app, aes(x = no_show, y = age, fill = no_show))+
+    geom_boxplot()+ 
+    ggtitle("Age vs No Show Boxplot")+
+    theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+```{r}
+#boxplot details
+select(app, age, no_show) %>% 
+    group_by(no_show) %>% 
+    summarise(age_mean = mean(age))
+```
+
+
+```{r}
+ggplot(data = app)+
+    geom_bar(aes(factor(age), fill = no_show), position = position_fill())+
+    ggtitle("Age vs No Show Proportion in Bar Diagram")+
+    ylab('Proportion')+
+    theme(plot.title = element_text(hjust = 0.5, size = 24))+
+    theme(axis.title.y = element_text(size =18))+
+    theme(axis.title.x = element_text(size =18))+
+    theme(axis.text.x = element_text(size= 12, angle = 90, hjust = 1))
+```
+
+
+```{r}
+#gender vs no show
+levels(app$gender)[levels(app$gender)=="M"] <- "Male"
+levels(app$gender)[levels(app$gender)=="F"] <- "Female"
+```
+
+
+```{r}
+#gender graph
+ggplot(data = app)+
+    geom_bar(aes(x = gender,fill = gender))+
+    ggtitle("Gender Bar Diagram")+
+    theme(plot.title = element_text(hjust = 0.5))
+#more female patients
+```
+
+
+```{r}
+#gender table
+table(app$gender, app$no_show)
+```
+
+
+```{r}
+table(app$no_show)
+```
+
+
+```{r}
+ggplot(app)+
+    geom_bar(aes(x = gender, fill = no_show))+
+    ggtitle("Gender vs No Show Stacked Bar Diagram")+
+    theme(plot.title = element_text(hjust = 0.5))+
+    ylab("Count")+
+    xlab("Gender")
+```
+
+
+```{r}
+#let's see the proportion
+prop.table(table(app$gender, app$no_show), margin = 1)
+```
+
+
+```{r}
+#proportioned graph
+ggplot(app)+
+    geom_bar(aes(x = gender, fill = no_show), position = position_fill())+
+    ggtitle("Gender vs No Show Bar Diagram")+
+    ylab('Proportion')+
+    xlab("Gender")+
+    theme(plot.title = element_text(hjust = 0.5))
+#not much different
+```
+
+
+```{r}
+#propotionized graph of other variables to no_show
+ggplot(app)+geom_bar(aes(scholarship, fill = no_show), position = position_fill())+
+    ylab('Proportion')
+ggplot(app)+geom_bar(aes(hypertension, fill =no_show), position = position_fill())+
+    ylab('Proportion')
+ggplot(app)+geom_bar(aes(diabetes, fill = no_show), position = position_fill())+
+    ylab('Proportion')
+ggplot(app)+geom_bar(aes (alcoholism, fill =  no_show), position = position_fill())+
+    ylab('Proportion')
+ggplot(app)+geom_bar(aes( handicap, fill = no_show), position = position_fill())+
+    ylab('Proportion')
+ggplot(app)+geom_bar(aes(sms_received, fill = no_show), position = position_fill())+
+    ylab('Proportion')
+```
+```{r}
+#new colunm of appointment day
+app$day <- weekdays(as.Date(app$appointment_day))
+```
+
+
+```{r}
+ggplot(app)+geom_bar(aes(day, fill = day))+
+     ggtitle("Number of Appointment")+
+    ylab('Count')+
+    xlab('Day')+
+    theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+```{r}
+library(lubridate)
+app$date <- as.Date(app$appointment_day)
+app$days <- wday(app$date, label=TRUE)
+```
+
+
+```{r}
+ggplot(app)+geom_bar(aes(days, fill = day))+
+     ggtitle("Number of Appointment")+
+    ylab('Count')+
+    xlab('Day')+
+    theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+```{r}
+# Proportionized days graphs to no_show
+ggplot(app)+geom_bar(aes(days, fill = no_show), position = position_fill())+
+     ggtitle("Appointment vs No Show")+
+    ylab('Proportion')+
+    xlab('Day')+
+    theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+```{r}
+# neighborhood vs no_show
+app_neighbor <- data.frame(table(app$neighborhood, app$no_show))
+names(app_neighbor) <- c("neighborhood", "no_show", 'Count')
+head(app_neighbor)
+```
+
+
+```{r}
+
+# proportionized graph of neighborhood to no_show
+ggplot(app)+
+    geom_bar(aes(x = neighborhood, fill = no_show), position = position_fill())+
+    theme(axis.text.x = element_text(size= 12, angle = 90, hjust = 1))+
+      ggtitle("Neighborhood vs No Show")+
+    ylab('Proportion')+
+    xlab('Neighborhood')+
+    theme(plot.title = element_text(hjust = 0.5))+
+    theme(plot.title = element_text(hjust = 0.5, size = 24))+
+    theme(axis.title.y = element_text(size =18))+ 
+    theme(axis.title.x = element_text(size =18))
+```
+
+
+```{r}
+# Holdout Sample
+#install.packages('mlbench')
+#install.packages('caret')
+library(caret)
+library(mlbench)
+data(app)
+ 
+set.seed(1)
+in_train <- createDataPartition(app$no_show, p = 4/5, list = FALSE)
+ 
+training <- app[ in_train,]
+testing  <- app[-in_train,]
+```
+
+
+```{r}
+# Logistic Regression
+lm <- glm(formula = no_show ~ . ,  data = training, family =binomial )
+```
+
+
+```{r}
+summary(lm)
+```
+
+
+```{r}
+lm <- glm(formula = no_show ~age+scholarship+hypertension+diabetes+alcoholism+sms_received+timespan  ,  data = training, family =binomial )
+```
+
+
+```{r}
+summary(lm)
+```
+
+
+```{r}
+fitted_p <- predict(lm,newdata=testing,type='response')
+```
+
+
+```{r}
+# Confusion Matrix
+pred_test <-  ifelse(fitted_p>0.5,'Yes','No')
+table(predicted = pred_test, actual = testing$no_show)
+mean(pred_test == testing$no_show)
+```
+
+
+```{r}
+# Lower the threshold
+pred_test <-  ifelse(fitted_p>0.3,'Yes','No')
+table(predicted = pred_test, actual = testing$no_show)
+mean(pred_test == testing$no_show)
+```
+
+
+```{r}
+# ROC plot
+library(pROC)
+test_prob = predict(lm, newdata = testing, type = "response")
+noshow <-  ifelse(testing$no_show=='Yes',1,0)
+test_roc = roc( noshow ~ test_prob, plot = TRUE, print.auc = TRUE)
+```
+
+
+```{r}
+# Classification trees
+library(rpart)
+ct_model<-rpart(no_show~age+scholarship+hypertension+diabetes+alcoholism+sms_received+day+timespan,           # model formula
+                data=training,                             # dataset
+                method="class",                           # "class" indicates a classification tree model 
+                control = rpart.control(cp = 0, maxdepth = 6,minsplit = 100))
+
+```
+
+
+```{r}
+library(rpart.plot)
+rpart.plot(ct_model)
+```
+
+
+```{r}
+print(ct_model)
+summary(ct_model)
+```
+
+
+```{r}
+# class membership (yes or no) 
+ct_pred_class<-predict(ct_model,type="class",newdata=testing) 
+head(ct_pred_class)
+
+# get the predicted values - class probabilities (default)
+ct_pred<-predict(ct_model, newdata=testing)  
+head(ct_pred)
+```
+
+
+```{r}
+# Confusion Matrix
+mean(ct_pred_class==testing$no_show)
+table(predicted = as.factor(ct_pred_class), actual = testing$no_show)
+```
+
+
+```{r}
+ct_pred_prob<-ct_pred[,2]   
+```
+
+
+```{r}
+# Lower the threshold
+ct_pred_class<-ifelse(ct_pred_prob>0.3,"Yes","No") 
+mean(ct_pred_class==testing$no_show)
+table(predicted = as.factor(ct_pred_class), actual = testing$no_show)
+```
+
+
+```{r}
+library(pROC)
+noshow <-  ifelse(testing$no_show=='Yes',1,0)
+test_roc = roc( noshow ~ ct_pred_prob, plot = TRUE, print.auc = TRUE)
+```
+
+
+```{r}
+# Random Forest
+set.seed(1)
+#install.packages("randomForest")
+library(randomForest)
+rf_model<-randomForest(no_show~age+scholarship+hypertension+diabetes+alcoholism+sms_received+day+timespan,              # model formula
+                       data=app,ntree=500, cutoff=c(0.5,0.5))
+```
+
+
+```{r}
+summary(rf_model)
+```
+
+
+```{r}
+# Execute the tuning process
+set.seed(1)              
+res <- tuneRF(x = training%>%select(age,scholarship,hypertension,diabetes,alcoholism,sms_received,day,timespan),
+              y = training$no_show,mtryStart=2,
+              ntreeTry = 500)
+```
+
+
+```{r}
+library(randomForest)
+rf_best_model<-randomForest(no_show~age+scholarship+hypertension+diabetes+alcoholism+sms_received+day+timespan,              # model formula
+                       data=training,          # use a training dataset for building a model
+                       ntree=500,                     
+                       cutoff=c(0.5,0.5), 
+                       mtry=2,
+                       importance=TRUE)
+rf_best_model
+
+
+```
+
+
+```{r}
+# use a test dataset for model evaluation
+rf_pred_prob<-predict(rf_best_model,newdata=testing,type="prob")[,2]   
+rf_pred_class<-predict(rf_best_model,newdata=testing,type="class")
+
+table(predicted = testing$no_show, actual=rf_pred_class)  
+mean(testing$no_show==rf_pred_class)
+```
+
+
+```{r}
+# Confusion Matrix
+rf_pred_class<-ifelse(rf_pred_prob>0.3,"Yes","No") 
+mean(rf_pred_class==testing$no_show)
+table(predicted = as.factor(rf_pred_class), actual = testing$no_show)
+```
+
+
+```{r}
+# ROC plot
+library(pROC)
+noshow <-  ifelse(testing$no_show=='Yes',1,0)
+test_roc = roc( noshow ~ rf_pred_prob, plot = TRUE, print.auc = TRUE)
+```
+
+
+```{r}
+print(rf_best_model)
+head(rf_best_model$votes)       # indicates the % of trees that voted for each class
+head(rf_best_model$predicted)   # the class favored by more trees (i.e. majority vote wins) 
+```
+
+
+```{r}
+# Importance of variables 
+varImpPlot(rf_best_model)  
+```
+
+
+```{r}
+# SVM Linear Classifier
+library(e1071)
+# model formula and dataset
+model_svm<-svm(formula= no_show ~ age + scholarship + hypertension + 
+    diabetes + alcoholism + sms_received + day, 
+               data=training,                   
+               kernel="linear",  
+               cost=0.1)        
+model_svm
+```
+
+
+```{r}
+dv<-data.frame(model_svm$decision.values)
+
+ggplot(dv,aes(x=No.Yes)) +
+  geom_histogram(colour="black",fill="white")
+```
+
+
+```{r}
+head(model_svm$fitted) 
+table(model_svm$fitted)
+
+predicted_svm<-predict(model_svm,newdata= testing, decision.values = TRUE)
+head(attr(predicted_svm, "decision.values"))
+```
+
+
+```{r}
+# Confusion Matrix
+mean(predicted_svm==testing$no_show)
+table(predicted = as.factor(predicted_svm), actual = testing$no_show)
+```
+
+
+
+
+
